@@ -6,7 +6,7 @@ format-preserving encryption (FPE), HMAC, hashing, and AES-GCM encryption.
 The service integrates with Vault for key management and supports
 tenant-aware key rotation and deterministic field-level key derivation.
 
-The service is based on `netstandard 2.0` to compatible with a majority of versions
+The service is based on `netstandard 2.0` to be compatible with a majority of versions
 used in legacy environments.
 
 ---
