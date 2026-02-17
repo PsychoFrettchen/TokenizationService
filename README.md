@@ -30,6 +30,10 @@ used in legacy environments.
 
 ## Architecture
 
+![architecture.svg](./architecture.svg)
+
+
+
 The service follows clean separation of concerns:
 
 - `IKeyProvider` – abstraction for key management
@@ -48,7 +52,6 @@ using HKDF to ensure strict cryptographic isolation.
 
 ## Technology Stack
 
-- .NET 8
 - gRPC
 - BouncyCastle (Crypto)
 - Vault (Key management)
@@ -89,3 +92,9 @@ Run:
 
 ```bash
 dotnet test
+
+```
+
+## Credits
+
+Architecture diagram icons by [Icons8](https://icons8.com) (used under free license).
