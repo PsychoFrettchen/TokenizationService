@@ -20,31 +20,7 @@ The stack supports:
 
 # Architecture Overview
 
-```
-                ┌────────────────────┐
-                │      Browser       │
-                │  (Client Cert)     │
-                └─────────┬──────────┘
-                          │ mTLS
-                          ▼
-                ┌────────────────────┐
-                │     Keycloak       │
-                │  HTTPS (8443)      │
-                └─────────┬──────────┘
-                          │
-                          ▼
-                ┌────────────────────┐
-                │     Postgres       │
-                │   Keycloak DB      │
-                └────────────────────┘
-
-
-                ┌────────────────────┐
-                │       Vault        │
-                │ HTTPS (8200/8201)  │
-                │  Raft Storage      │
-                └────────────────────┘
-```
+![architecture.svg](./architecture.svg)
 
 ---
 
@@ -415,3 +391,7 @@ This repository provides:
 * Automated backup & restore
 * Full migration capability
 * Local development security simulation
+
+## Credits
+
+Architecture diagram icons by [Icons8](https://icons8.com) (used under free license).
