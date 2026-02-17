@@ -1,0 +1,104 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: keycloak-postgres
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "keycloak"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [keycloak-network]
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0.5
+    container_name: keycloak
+    environment:
+      # --- DB ---
+      KC_DB: postgres
+      KC_DB_URL_HOST: postgres
+      KC_DB_URL_PORT: "5432"
+      KC_DB_URL_DATABASE: keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak_password
+
+      # --- Admin user ---
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin_password
+
+      # --- Hostname / HTTPS ---
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_STRICT: "true"
+      KC_HOSTNAME_STRICT_HTTPS: "true"
+      KC_HOSTNAME_ADMIN_URL: https://localhost:8443
+
+      # Turn OFF plain HTTP, turn ON HTTPS with server cert+key
+      KC_HTTP_ENABLED: "false"
+      KC_HTTPS_CERTIFICATE_FILE: /certs/server.pem
+      KC_HTTPS_CERTIFICATE_KEY_FILE: /certs/server.key
+
+      # mTLS: trust store with CLIENT CA; require client cert
+      KC_HTTPS_TRUST_STORE_FILE: /certs/client.p12
+      KC_HTTPS_TRUST_STORE_PASSWORD: changeit
+      KC_HTTPS_CLIENT_AUTH: required
+
+      # If you run behind a reverse proxy/ingress, also set:
+      # KC_PROXY: edge
+      # PROXY_ADDRESS_FORWARDING: "true"
+
+    command: ["start"]    # use "start" (prod mode). For local you can keep "start-dev" if you prefer.
+    ports:
+      - "8443:8443"       # HTTPS+mTLS
+    volumes:
+      - ./certs:/certs:ro  # must contain server.pem, server.key, ca.pem, truststore.p12
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # Keycloak is mTLS; healthcheck uses client cert and CA
+      test: ["CMD", "sh", "-c", "curl --silent --fail --cacert /certs/ca.pem --cert /certs/client.pem --key /certs/client.key https://127.0.0.1:8443/realms/master/.well-known/openid-configuration >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [keycloak-network]
+
+  vault:
+    image: hashicorp/vault:1.15
+    container_name: vault-new
+    environment:
+      VAULT_ADDR: "https://vault1.poc.itproject.com:8200"
+      VAULT_CACERT: "/certs/ca.pem"
+      VAULT_CLIENT_CERT: "/certs/client.pem"
+      VAULT_CLIENT_KEY: "/certs/client.key"
+    ports:
+      - "8200:8200"
+      - "8201:8201"
+    restart: unless-stopped
+    volumes:
+      - ./logs:/vault/logs:rw,Z
+      - ./data:/vault/data:rw,Z
+      - ./config:/vault/config:rw,Z
+      - ./certs:/certs:ro,Z
+      - ./file:/vault/file:rw,Z
+    cap_add: ["IPC_LOCK"]
+    entrypoint: ["vault", "server", "-config=/vault/config/config.hcl"]
+    healthcheck:
+      test: ["CMD", "sh", "-c", "curl --silent --fail --cacert /certs/ca.pem --cert /certs/client.pem --key /certs/client.key https://127.0.0.1:8200/v1/sys/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [keycloak-network]
+
+volumes:
+  postgres_data:
+    name: keycloak_postgres_data
+
+networks:
+  keycloak-network:
+    name: keycloak-network
+

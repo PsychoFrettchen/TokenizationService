@@ -1,0 +1,202 @@
+syntax = "proto3";
+
+package tokenization.v1;
+
+// ---- Language-specific options ----
+// Specifies the namespace where the generated C# code will reside.
+option csharp_namespace = "em.Tokenization.V1";
+
+
+// =============================================================
+// ========================== ENUMS =============================
+// =============================================================
+
+// Type of tokenization algorithm (high-level abstraction)
+enum TokenType {
+  TOKEN_TYPE_UNSPECIFIED = 0; // Not defined / unknown.
+  TOKEN_TYPE_RANDOM = 1;      // Randomly generated token, not reversible without lookup.
+  TOKEN_TYPE_FPE = 2;         // Format-preserving encryption – reversible (e.g., FPE with AES).
+  TOKEN_TYPE_HMAC = 3;        // HMAC-based tokenization (verifiable, but not reversible without storage).
+  TOKEN_TYPE_HASH = 4;        // One-way hash, only suitable for validation.
+  TOKEN_TYPE_ENCRYPTED = 5;   // Full encryption (e.g., AES-GCM).
+}
+
+// Optional semantic hint about what kind of data is being tokenized.
+enum DataClass {
+  DATA_CLASS_UNSPECIFIED = 0;   // Not specified / generic.
+  DATA_CLASS_GENERIC_TEXT = 1;  // Free text.
+  DATA_CLASS_EMAIL = 2;         // Email address.
+  DATA_CLASS_PHONE = 3;         // Phone number.
+  DATA_CLASS_SSN = 4;           // Social security number.
+  DATA_CLASS_CREDIT_CARD = 5;   // Credit card number.
+  DATA_CLASS_IBAN = 6;          // IBAN / bank account number.
+  DATA_CLASS_DATE = 7;          // Date.
+  DATA_CLASS_POSTAL_CODE = 8;   // Postal code.
+}
+
+// Controls how the format is handled when format preservation is enabled.
+enum FormatMode {
+  FORMAT_MODE_UNSPECIFIED = 0;
+  // Preserve length and character classes (e.g., digits remain digits).
+  FORMAT_MODE_PRESERVE_CLASS = 1;
+  // Use a fixed mask with literal characters (e.g., "XXXX-XXXX-XXXX-XXXX").
+  // Placeholder meaning: X = any, 9 = digit, A = letter.
+  FORMAT_MODE_MASKED = 2;
+}
+
+
+// =============================================================
+// ========================= MESSAGES ===========================
+// =============================================================
+
+// Input field to be tokenized.
+message FieldPayload {
+  string field = 1;                 // Logical field name (e.g., "email", "card_number").
+  string plaintext = 2;             // Plaintext value to be tokenized.
+  DataClass data_class = 3;         // Optional semantic classification.
+  bool preserve_format = 4;         // Preserve format as much as possible (for FPE).
+  FormatMode format_mode = 5;       // Formatting mode (see enum).
+  string format_mask = 6;           // Optional mask if format_mode == MASKED.
+  map<string, string> attributes = 7; // Free-form additional attributes per field.
+}
+
+// Output of a tokenized field.
+message TokenizedField {
+  string field = 1; // Name of the input field.
+  string token = 2; // Generated token value.
+}
+
+// Output of a detokenized field.
+message DetokenizedField {
+  string field = 1;     // Field name.
+  string plaintext = 2; // Restored plaintext.
+}
+
+// Field-level error description (for partial success in batch calls).
+message FieldError {
+  string field = 1;   // Affected field.
+  int32 code = 2;     // Application-specific error code (e.g., 400xx or 500xx).
+  string message = 3; // Human-readable explanation.
+}
+
+// Context object for multi-tenancy, key selection, etc.
+message Context {
+  string tenant_id = 1;           // Tenant ID (to isolate multiple customers).
+  string key_id = 2;              // Key identifier to use for this operation.
+  bytes tweak = 3;                // Optional tweak for FPE (deterministic variation per context).
+  string purpose = 4;             // Purpose / description (e.g., "billing", "anonymization").
+  map<string, string> labels = 5; // Free key-value pairs (e.g., env=prod, region=eu).
+}
+
+
+// =============================================================
+// ===================== UNARY RPC MESSAGES =====================
+// =============================================================
+
+// Request for tokenizing multiple fields.
+message TokenizeRequest {
+  repeated FieldPayload items = 1; // Multiple input fields (batch).
+  TokenType token_type = 2;        // Desired algorithm type.
+  Context context = 3;             // Context (tenant, key, etc.).
+}
+
+// Response to TokenizeRequest.
+message TokenizeResponse {
+  repeated TokenizedField items = 1; // Successfully tokenized fields.
+  repeated FieldError errors = 2;    // Failed fields.
+  string key_id = 3;                // Key actually used.
+}
+
+// Request for detokenization.
+message DetokenizeRequest {
+  repeated TokenizedField items = 1; // Token(s) to be reversed.
+  Context context = 2;               // Context to select the correct key space.
+}
+
+// Response to DetokenizeRequest.
+message DetokenizeResponse {
+  repeated DetokenizedField items = 1; // Successfully restored fields.
+  repeated FieldError errors = 2;      // Per-field errors.
+  string key_id = 3;                  // Key used.
+}
+
+// Request for token validation or inspection.
+message ValidateTokenRequest {
+  string token = 1;   // Token to validate.
+  Context context = 2;
+}
+
+// Response to ValidateTokenRequest.
+message ValidateTokenResponse {
+  bool valid = 1;            // Whether the token is valid.
+  string field = 2;          // Associated field (if known).
+  DataClass data_class = 3;  // Original data class (if known).
+  TokenType token_type = 4;  // Determined token type.
+  string key_id = 5;         // Key identifier, if determinable.
+}
+
+// Request to rotate or switch the active key.
+// No secret key material is transferred here,
+// only identifiers (Key IDs).
+message RotateKeyRequest {
+  string old_key_id = 1;  // Currently used key (reference).
+  string new_key_id = 2;  // New active key.
+  bool rewrap_only = 3;   // If true: only rewrap internal keys, do not re-encrypt data.
+  Context context = 4;    // Tenant-specific context.
+}
+
+// Response to RotateKeyRequest.
+message RotateKeyResponse {
+  string active_key_id = 1; // Now active key.
+}
+
+
+// =============================================================
+// ==================== STREAMING INTERFACES ====================
+// =============================================================
+
+// Streaming tokenization enables large data volumes without batch limits.
+
+// First message in the stream (initialization).
+message StreamTokenizeInit {
+  TokenType token_type = 1; // Algorithm.
+  Context context = 2;      // Context.
+}
+
+// Input data in the stream.
+message StreamTokenizeIn {
+  oneof payload {
+    StreamTokenizeInit init = 1; // Must be sent first by the client.
+    FieldPayload item = 2;       // Then individual fields to tokenize.
+  }
+}
+
+// Output data in the stream (per item).
+message StreamTokenizeOut {
+  oneof result {
+    TokenizedField item = 1; // Successful result for one input field.
+    FieldError error = 2;    // Error for a specific input field.
+  }
+}
+
+
+// =============================================================
+// =========================== SERVICE ==========================
+// =============================================================
+
+service TokenizationService {
+  // Standard tokenization of multiple fields in one request.
+  rpc Tokenize(TokenizeRequest) returns (TokenizeResponse);
+
+  // Reverse tokens back to plaintext.
+  rpc Detokenize(DetokenizeRequest) returns (DetokenizeResponse);
+
+  // Validate or analyze a token.
+  rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse);
+
+  // (Optional) Administration: rotate or activate a new key.
+  rpc RotateKey(RotateKeyRequest) returns (RotateKeyResponse);
+
+  // High-throughput streaming tokenization (bidirectional).
+  rpc StreamTokenize(stream StreamTokenizeIn) returns (stream StreamTokenizeOut);
+}

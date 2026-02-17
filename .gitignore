@@ -1,0 +1,103 @@
+#####################################
+# .NET / C#
+#####################################
+
+bin/
+obj/
+out/
+TestResults/
+*.user
+*.suo
+*.userprefs
+*.csproj.user
+*.dbmdl
+*.cache
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+#####################################
+# Rider / JetBrains
+#####################################
+
+.idea/
+*.sln.iml
+*.DotSettings.user
+
+#####################################
+# Visual Studio
+#####################################
+
+.vs/
+*.vspscc
+*.vssscc
+*.pidb
+*.svclog
+*.aps
+_ReSharper*/
+*.ReSharper
+*.ncrunch*
+*.localhistory/
+
+#####################################
+# Protobuf / gRPC generated
+#####################################
+
+**/obj/**/*.cs
+**/bin/**/*.cs
+
+#####################################
+# Logs
+#####################################
+
+*.log
+logs/
+*.trx
+
+#####################################
+# OS Files
+#####################################
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+desktop.ini
+
+#####################################
+# Environment / Secrets
+#####################################
+
+# .env files
+.env
+.env.*
+
+# Vault / Keycloak tokens
+*.token
+*.secret
+
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+tests/Certs/*.pem
+tests/Certs/*.key
+tests/Certs/*.p12
+tests/Certs/*.pfx
+
+#####################################
+# Coverage / Reports
+#####################################
+
+coverage/
+*.coverage
+*.coveragexml
+
+#####################################
+# Docker
+#####################################
+
+docker-compose.override.yml
